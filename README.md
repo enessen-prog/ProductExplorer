@@ -27,6 +27,7 @@ L'appli affiche un petit catalogue de produits et je l'ai complétée à chaque 
 - TP8 : catalogue interactif
 - TP9 : State Hoisting
 - TP10 : ViewModel
+- TP11 : StateFlow
 
 ## TP4 - Écran de détail produit
 
@@ -111,3 +112,27 @@ Les fonctionnalités en plus du TP9 (catégories, favoris uniquement, tri par pr
 
 - un bouton "Réinitialiser les filtres" qui remet la recherche, le filtre stock, la catégorie, les favoris uniquement et le tri à zéro d'un coup ; il n'apparaît que si un filtre est actif, et c'est le ViewModel qui le calcule (hasActiveFilters) et qui fait la remise à zéro (onResetFilters)
 - le nombre de favoris affiché à côté du nombre de produits
+
+## TP11 - StateFlow
+
+J'ai regroupé tout l'état du catalogue dans une seule classe, ProductCatalogUiState (produits affichés, catégories, recherche, filtres, favoris et tri).
+
+- le ViewModel garde cet état dans un MutableStateFlow privé et l'expose en StateFlow, donc seul le ViewModel peut le modifier
+- chaque action crée un nouvel état avec update et copy au lieu de modifier les valeurs une par une
+- le filtrage et le tri sont faits dans une fonction privée du ViewModel, appelée après chaque changement
+- ProductCatalogContainer observe l'état avec collectAsState() et le transmet à ProductCatalogScreen, qui ne sait pas que l'état vient d'un StateFlow
+
+Les fonctionnalités en plus des TP précédents (filtre par catégorie, favoris uniquement, tri par prix, réinitialisation des filtres) passent maintenant aussi par le StateFlow. La liste est aussi recalculée quand on ajoute ou retire un favori, pour que le filtre "Favoris uniquement" reste à jour.
+
+### Organisation du code
+
+Tout le code était dans MainActivity.kt. Je l'ai réparti en plusieurs fichiers :
+
+- `data/Product.kt` : ProductUi et les données locales
+- `ui/components/CategoryChip.kt` : la pastille de catégorie utilisée par l'accueil et le catalogue
+- `ui/detail/ProductDetailScreen.kt` : l'écran de détail produit
+- `ui/home/ProductHomeScreen.kt` : l'écran d'accueil
+- `ui/catalog/` : l'état (ProductCatalogUiState), le ViewModel et l'écran catalogue
+- `MainActivity.kt` : seulement l'activité qui lance le catalogue
+
+J'ai aussi enlevé un produit en double dans les données locales.
