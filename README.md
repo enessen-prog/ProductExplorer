@@ -24,6 +24,8 @@ L'appli affiche un petit catalogue de produits et je l'ai complétée à chaque 
 - TP5 : écran d'accueil
 - TP6 : catalogue de produits
 - TP7 : personnalisation graphique
+- TP8 : catalogue interactif
+- TP9 : State Hoisting
 
 ## TP4 - Écran de détail produit
 
@@ -56,3 +58,36 @@ J'ai personnalisé le thème Material 3 dans Theme.kt et Type.kt :
 - des formes avec des arrondis (ProductShapes)
 
 Le fond, le titre, les cartes et les catégories du catalogue utilisent maintenant les couleurs et les styles du thème. J'ai aussi ajouté une preview en thème clair et une en thème sombre pour comparer.
+
+## TP8 - Catalogue interactif
+
+J'ai rendu le catalogue interactif avec les états Compose (mutableStateOf, remember et rememberSaveable).
+
+- un champ de recherche qui filtre les produits par titre, marque ou catégorie
+- un bouton pour afficher uniquement les produits en stock
+- le nombre de produits affichés, qui se met à jour tout seul
+- un bouton sur chaque carte pour ajouter ou retirer un produit des favoris
+
+La liste filtrée est calculée avec remember et ne change que si la recherche ou le filtre change. La recherche, le filtre et les favoris sont gardés avec rememberSaveable, donc ils restent même quand on tourne l'écran.
+
+## TP9 - State Hoisting
+
+J'ai réorganisé le catalogue en séparant l'état de l'affichage :
+
+- ProductCatalogContainer (stateful) garde la recherche, les filtres et les favoris, calcule la liste filtrée et contient toggleFavorite
+- ProductCatalogScreen (stateless) reçoit les valeurs en paramètres et fait remonter les clics par des callbacks
+- MainActivity appelle maintenant ProductCatalogContainer, et les catégories sont passées en paramètre
+
+Les données descendent et les événements remontent. Les previews du catalogue utilisent maintenant le container (thème clair et thème sombre), et j'ai ajouté une preview de l'écran stateless avec des valeurs fixes.
+
+### Fonctionnalités en plus
+
+J'ai ajouté ces fonctionnalités moi-même, en gardant le même principe (l'état est dans le container, l'écran reçoit les valeurs et les callbacks) :
+
+- les pastilles de catégories sont cliquables et filtrent les produits ; la catégorie choisie change de couleur et un deuxième clic enlève le filtre
+- un filtre "Favoris uniquement" pour n'afficher que les produits ajoutés aux favoris
+- un tri par prix qui passe de "Prix croissant" à "Prix décroissant" puis revient à l'ordre de départ
+- une croix dans le champ de recherche pour l'effacer d'un coup
+- un message quand aucun produit ne correspond aux filtres
+
+Tous ces états sont gardés avec rememberSaveable, comme la recherche.

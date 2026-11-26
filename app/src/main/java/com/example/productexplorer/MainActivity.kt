@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,11 +21,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -38,6 +43,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -50,8 +56,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             ProductExplorerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ProductCatalogScreen(
+                    ProductCatalogContainer(
                         products = sampleProducts(),
+                        categories = sampleCategories(),
                         onProductClick = {},
                         modifier = Modifier.padding(innerPadding)
                     )
@@ -59,6 +66,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+enum class PriceSortOrder {
+    NONE,
+    ASCENDING,
+    DESCENDING
 }
 
 data class ProductUi(
@@ -518,12 +531,26 @@ fun ProductQuickInfoRow(
 @Composable
 fun CategoryChip(
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isSelected: Boolean = false,
+    onClick: (() -> Unit)? = null
 ) {
+    val chipModifier = if (onClick != null) {
+        modifier
+            .clip(MaterialTheme.shapes.extraLarge)
+            .clickable(onClick = onClick)
+    } else {
+        modifier
+    }
+
     Surface(
-        modifier = modifier,
+        modifier = chipModifier,
         shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.secondary,
+        color = if (isSelected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.secondary
+        },
         contentColor = MaterialTheme.colorScheme.onPrimary
     ) {
         Text(
@@ -607,8 +634,9 @@ fun ProductHomeScreenPreview() {
 }
 
 @Composable
-fun ProductCatalogScreen(
+fun ProductCatalogContainer(
     products: List<ProductUi>,
+    categories: List<String>,
     onProductClick: (ProductUi) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -624,16 +652,28 @@ fun ProductCatalogScreen(
         mutableStateOf(listOf<Int>())
     }
 
-    fun toggleFavorite(productId: Int) {
-        favoriteProductIds = if (favoriteProductIds.contains(productId)) {
-            favoriteProductIds - productId
-        } else {
-            favoriteProductIds + productId
-        }
+    var selectedCategory by rememberSaveable {
+        mutableStateOf<String?>(null)
     }
 
-    val filteredProducts = remember(products, searchQuery, showOnlyInStock) {
-        products.filter { product ->
+    var showOnlyFavorites by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var priceSortOrder by rememberSaveable {
+        mutableStateOf(PriceSortOrder.NONE)
+    }
+
+    val filteredProducts = remember(
+        products,
+        searchQuery,
+        showOnlyInStock,
+        selectedCategory,
+        showOnlyFavorites,
+        favoriteProductIds,
+        priceSortOrder
+    ) {
+        val matchingProducts = products.filter { product ->
             val matchesSearch =
                 product.title.contains(searchQuery, ignoreCase = true) ||
                         product.brand.contains(searchQuery, ignoreCase = true) ||
@@ -642,10 +682,90 @@ fun ProductCatalogScreen(
             val matchesStock =
                 !showOnlyInStock || product.stock > 0
 
-            matchesSearch && matchesStock
+            val matchesCategory =
+                selectedCategory == null || product.category == selectedCategory
+
+            val matchesFavorites =
+                !showOnlyFavorites || favoriteProductIds.contains(product.id)
+
+            matchesSearch && matchesStock && matchesCategory && matchesFavorites
+        }
+
+        when (priceSortOrder) {
+            PriceSortOrder.NONE -> matchingProducts
+            PriceSortOrder.ASCENDING -> matchingProducts.sortedBy { product -> product.price }
+            PriceSortOrder.DESCENDING -> matchingProducts.sortedByDescending { product -> product.price }
         }
     }
 
+    fun toggleFavorite(productId: Int) {
+        favoriteProductIds = if (favoriteProductIds.contains(productId)) {
+            favoriteProductIds - productId
+        } else {
+            favoriteProductIds + productId
+        }
+    }
+
+    ProductCatalogScreen(
+        products = filteredProducts,
+        categories = categories,
+        searchQuery = searchQuery,
+        onSearchQueryChange = { newValue ->
+            searchQuery = newValue
+        },
+        showOnlyInStock = showOnlyInStock,
+        onToggleStockFilter = {
+            showOnlyInStock = !showOnlyInStock
+        },
+        favoriteProductIds = favoriteProductIds,
+        onFavoriteClick = { productId ->
+            toggleFavorite(productId)
+        },
+        selectedCategory = selectedCategory,
+        onCategoryClick = { category ->
+            selectedCategory = if (selectedCategory == category) {
+                null
+            } else {
+                category
+            }
+        },
+        showOnlyFavorites = showOnlyFavorites,
+        onToggleFavoritesFilter = {
+            showOnlyFavorites = !showOnlyFavorites
+        },
+        priceSortOrder = priceSortOrder,
+        onPriceSortClick = {
+            priceSortOrder = when (priceSortOrder) {
+                PriceSortOrder.NONE -> PriceSortOrder.ASCENDING
+                PriceSortOrder.ASCENDING -> PriceSortOrder.DESCENDING
+                PriceSortOrder.DESCENDING -> PriceSortOrder.NONE
+            }
+        },
+        onProductClick = onProductClick,
+        modifier = modifier
+    )
+
+}
+
+@Composable
+fun ProductCatalogScreen(
+    products: List<ProductUi>,
+    categories: List<String>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    showOnlyInStock: Boolean,
+    onToggleStockFilter: () -> Unit,
+    favoriteProductIds: List<Int>,
+    onFavoriteClick: (Int) -> Unit,
+    selectedCategory: String?,
+    onCategoryClick: (String) -> Unit,
+    showOnlyFavorites: Boolean,
+    onToggleFavoritesFilter: () -> Unit,
+    priceSortOrder: PriceSortOrder,
+    onPriceSortClick: () -> Unit,
+    onProductClick: (ProductUi) -> Unit,
+    modifier: Modifier = Modifier
+) {
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -664,21 +784,32 @@ fun ProductCatalogScreen(
         item {
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = { newValue ->
-                    searchQuery = newValue
-                },
+                onValueChange = onSearchQueryChange,
                 label = {
                     Text(text = "Rechercher un produit")
                 },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                onSearchQueryChange("")
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Effacer la recherche"
+                            )
+                        }
+                    }
+                },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
         }
 
         item {
             Button(
-                onClick = {
-                    showOnlyInStock = !showOnlyInStock
-                }
+                onClick = onToggleStockFilter
             ) {
                 Text(
                     text = if (showOnlyInStock) {
@@ -691,32 +822,77 @@ fun ProductCatalogScreen(
         }
 
         item {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = showOnlyFavorites,
+                    onClick = onToggleFavoritesFilter,
+                    label = {
+                        Text(text = "Favoris uniquement")
+                    },
+                    leadingIcon = if (showOnlyFavorites) {
+                        {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null
+                            )
+                        }
+                    } else {
+                        null
+                    }
+                )
+                FilterChip(
+                    selected = priceSortOrder != PriceSortOrder.NONE,
+                    onClick = onPriceSortClick,
+                    label = {
+                        Text(
+                            text = when (priceSortOrder) {
+                                PriceSortOrder.NONE -> "Trier par prix"
+                                PriceSortOrder.ASCENDING -> "Prix croissant"
+                                PriceSortOrder.DESCENDING -> "Prix décroissant"
+                            }
+                        )
+                    }
+                )
+            }
+        }
+
+        item {
             Text(
-                text = "Explorez une sélection de produits disponibles localement.",
-                style = MaterialTheme.typography.bodyMedium
+                text = "${products.size} produit(s) affiché(s)",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground
             )
         }
 
         item {
-            CategoryRow(categories = sampleCategories())
+            CategoryRow(
+                categories = categories,
+                selectedCategory = selectedCategory,
+                onCategoryClick = onCategoryClick
+            )
         }
 
-        item {
-            Text(
-                text = "${filteredProducts.size} produit(s) affiché(s)",
-                style = MaterialTheme.typography.bodyMedium
-            )
+        if (products.isEmpty()) {
+            item {
+                Text(
+                    text = "Aucun produit ne correspond à votre recherche.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
         }
 
         items(
-            items = filteredProducts,
+            items = products,
             key = { product -> product.id }
         ) { product ->
             ProductListItem(
                 product = product,
                 isFavorite = favoriteProductIds.contains(product.id),
                 onFavoriteClick = {
-                    toggleFavorite(product.id)
+                    onFavoriteClick(product.id)
                 },
                 onClick = {
                     onProductClick(product)
@@ -783,6 +959,8 @@ fun ProductListItem(
 @Composable
 fun CategoryRow(
     categories: List<String>,
+    selectedCategory: String?,
+    onCategoryClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyRow(
@@ -790,17 +968,27 @@ fun CategoryRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(categories) { category ->
-            CategoryChip(label = category)
+            CategoryChip(
+                label = category,
+                isSelected = category == selectedCategory,
+                onClick = {
+                    onCategoryClick(category)
+                }
+            )
         }
     }
 }
 
-@Preview(showBackground = true)
+@Preview(
+    showBackground = true,
+    name = "Catalogue - Light Theme"
+)
 @Composable
-fun ProductCatalogScreenPreview() {
-    ProductExplorerTheme {
-        ProductCatalogScreen(
+fun ProductCatalogContainerLightPreview() {
+    ProductExplorerTheme(darkTheme = false) {
+        ProductCatalogContainer(
             products = sampleProducts(),
+            categories = sampleCategories(),
             onProductClick = {}
         )
     }
@@ -811,24 +999,35 @@ fun ProductCatalogScreenPreview() {
     name = "Catalogue - Dark Theme"
 )
 @Composable
-fun ProductCatalogScreenDarkPreview() {
+fun ProductCatalogContainerDarkPreview() {
     ProductExplorerTheme(darkTheme = true) {
-        ProductCatalogScreen(
+        ProductCatalogContainer(
             products = sampleProducts(),
+            categories = sampleCategories(),
             onProductClick = {}
         )
     }
 }
 
-@Preview(
-    showBackground = true,
-    name = "Catalogue - Light Theme"
-)
+@Preview(showBackground = true)
 @Composable
-fun ProductCatalogScreenLightPreview() {
-    ProductExplorerTheme(darkTheme = false) {
+fun ProductCatalogScreenStatelessPreview() {
+    ProductExplorerTheme {
         ProductCatalogScreen(
             products = sampleProducts(),
+            categories = sampleCategories(),
+            searchQuery = "",
+            onSearchQueryChange = {},
+            showOnlyInStock = false,
+            onToggleStockFilter = {},
+            favoriteProductIds = listOf(1),
+            onFavoriteClick = {},
+            selectedCategory = null,
+            onCategoryClick = {},
+            showOnlyFavorites = false,
+            onToggleFavoritesFilter = {},
+            priceSortOrder = PriceSortOrder.NONE,
+            onPriceSortClick = {},
             onProductClick = {}
         )
     }
