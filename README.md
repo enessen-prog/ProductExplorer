@@ -26,6 +26,7 @@ L'appli affiche un petit catalogue de produits et je l'ai complétée à chaque 
 - TP7 : personnalisation graphique
 - TP8 : catalogue interactif
 - TP9 : State Hoisting
+- TP10 : ViewModel
 
 ## TP4 - Écran de détail produit
 
@@ -91,3 +92,22 @@ J'ai ajouté ces fonctionnalités moi-même, en gardant le même principe (l'ét
 - un message quand aucun produit ne correspond aux filtres
 
 Tous ces états sont gardés avec rememberSaveable, comme la recherche.
+
+## TP10 - ViewModel
+
+J'ai déplacé l'état du catalogue dans un ViewModel (ProductCatalogViewModel) :
+
+- le ViewModel garde les produits, les catégories, la recherche, le filtre stock et les favoris avec mutableStateOf et private set, donc l'écran peut lire ces valeurs mais pas les modifier directement
+- les actions passent par des fonctions du ViewModel (onSearchQueryChange, onToggleStockFilter, onFavoriteClick)
+- la liste filtrée est calculée dans le ViewModel
+- ProductCatalogContainer récupère le ViewModel avec viewModel() et transmet ses valeurs à ProductCatalogScreen, qui n'a pas changé
+- MainActivity n'a plus besoin de passer les produits et les catégories
+
+J'ai ajouté la dépendance lifecycle-viewmodel-compose dans le Version Catalog. Les previews affichent directement l'écran stateless, pour ne pas dépendre du ViewModel. L'état reste maintenant après une rotation de l'écran.
+
+Les fonctionnalités en plus du TP9 (catégories, favoris uniquement, tri par prix) sont aussi passées dans le ViewModel.
+
+### Fonctionnalités en plus
+
+- un bouton "Réinitialiser les filtres" qui remet la recherche, le filtre stock, la catégorie, les favoris uniquement et le tri à zéro d'un coup ; il n'apparaît que si un filtre est actif, et c'est le ViewModel qui le calcule (hasActiveFilters) et qui fait la remise à zéro (onResetFilters)
+- le nombre de favoris affiché à côté du nombre de produits
